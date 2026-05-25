@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import StarRatingDisplay from './StarRatingDisplay';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { Bookmark } from 'lucide-react'; 
 
 const Classificacao = ({ nota }) => {
   if (!nota) return null;
   return (
-    <div className="absolute top-3 right-3 bg-rich-charcoal/90 backdrop-blur-md px-2 py-1 rounded border border-white/10 shadow-lg z-10">
+    <div className="absolute top-3 right-3 bg-rich-charcoal/95 px-2 py-1 rounded-sm border border-dark-gold/20 shadow-editorial z-10">
       <StarRatingDisplay rating={nota} />
     </div>
   );
@@ -24,63 +25,83 @@ export default function LivroCard({ livro, onDelete, onEdit }) {
     } catch (error) { console.error("Erro ao favoritar", error); }
   };
 
-  // Lógica para determinar a cor e texto da Tag
+  // Lógica de tags com estética editorial, sem cores neon
   const getStatusInfo = (status) => {
-      switch(status) {
-          case 'lendo': return { label: 'Lendo Agora', style: 'bg-burnished-gold text-rich-charcoal' };
-          case 'quero-ler': return { label: 'Quero Ler', style: 'bg-purple-900/50 text-purple-200 border border-purple-500/30' };
-          default: return { label: 'Lido', style: 'bg-muted-silver/20 text-muted-silver' };
+      const s = status?.toLowerCase();
+      switch(s) {
+          case 'lendo': 
+              return { label: 'Leitura Atual', style: 'bg-burnished-gold text-rich-charcoal border-burnished-gold' };
+          case 'quero-ler': 
+          case 'quero_ler':
+              return { label: 'Lista de Desejos', style: 'bg-transparent text-muted-silver border-dark-gold/40' };
+          case 'abandonado':
+              return { label: 'Abandonado', style: 'bg-transparent text-red-400/50 border-red-900/30' };
+          default: 
+              return { label: 'Obra Lida', style: 'bg-surface text-muted-silver border-dark-gold/10' };
       }
   };
 
   const statusInfo = getStatusInfo(livro.status);
 
   return (
-    <div className="group relative flex flex-col bg-surface rounded-lg border border-muted-silver/10 shadow-lg overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 h-full">
+    <div className="group relative flex flex-col bg-surface rounded-sm border border-dark-gold/10 shadow-editorial overflow-hidden transition-all duration-500 hover:border-burnished-gold/40 hover:-translate-y-1 h-full">
       
       <Link to={`/livro/${livro.id}`} className="flex-grow flex flex-col relative">
         <div className="relative aspect-[2/3] w-full overflow-hidden bg-rich-charcoal">
             <img
               src={livro.urlCapa || capaPadrao}
               alt={livro.titulo}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100"
+              // Efeito fotográfico: levemente opaco e com mais contraste até o hover
+              className="w-full h-full object-cover filter brightness-90 contrast-125 grayscale-[15%] transition-all duration-700 group-hover:scale-105 group-hover:brightness-100 group-hover:grayscale-0"
               onError={(e) => e.target.src = capaPadrao} 
             />
-            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-surface to-transparent opacity-80"></div>
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-surface via-surface/80 to-transparent opacity-95"></div>
+            
             <Classificacao nota={livro.classificacao} />
 
+            {/* MARCADOR DE FAVORITO FÍSICO */}
             <button 
                 onClick={toggleFavorito}
-                className="absolute top-3 left-3 z-20 text-2xl drop-shadow-md hover:scale-110 transition-transform"
+                className={`absolute top-3 left-3 z-20 p-2 rounded-sm border transition-all duration-300 backdrop-blur-md ${
+                    livro.favorito 
+                    ? 'bg-burnished-gold text-rich-charcoal border-burnished-gold shadow-[0_0_15px_rgba(194,168,120,0.3)]' 
+                    : 'bg-rich-charcoal/60 text-muted-silver border-dark-gold/30 hover:text-burnished-gold hover:border-burnished-gold/50'
+                }`}
                 title={livro.favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
             >
-                {livro.favorito ? "❤️" : "🤍"}
+                <Bookmark size={14} fill={livro.favorito ? "currentColor" : "none"} />
             </button>
         </div>
 
-        <div className="p-5 flex flex-col flex-grow">
-            <h3 className="font-serif-display text-xl leading-tight text-antique-white mb-1 line-clamp-2">
+        <div className="p-6 flex flex-col flex-grow">
+            <h3 className="font-serif-display text-xl leading-tight text-antique-white mb-2 line-clamp-2 group-hover:text-burnished-gold transition-colors">
               {livro.titulo}
             </h3>
-            <p className="font-sans-modern text-sm text-muted-silver font-medium mb-3">
+            <p className="font-sans-modern text-[10px] text-burnished-gold uppercase tracking-[0.2em] font-bold mb-4">
               {livro.autor}
             </p>
             
-            {/* CORREÇÃO: Tag de Status Dinâmica */}
             <div className="mt-auto">
-                <span className={`text-xs px-2 py-1 rounded font-bold uppercase ${statusInfo.style}`}>
+                <span className={`text-[10px] px-2 py-1 border rounded-sm font-bold uppercase tracking-widest ${statusInfo.style}`}>
                     {statusInfo.label}
                 </span>
             </div>
         </div>
       </Link>
       
-      <div className="p-5 pt-0 mt-auto flex gap-3">
-        <button onClick={() => onEdit(livro.id)} className="flex-1 py-2 px-3 rounded border border-muted-silver/20 text-muted-silver text-sm font-bold hover:border-burnished-gold hover:text-burnished-gold transition-colors">
+      {/* BOTÕES DE AÇÃO - Rodapé Editorial */}
+      <div className="flex border-t border-dark-gold/10 mt-auto bg-surface/50">
+        <button 
+            onClick={() => onEdit(livro.id)} 
+            className="flex-1 py-3 text-[10px] uppercase tracking-[0.2em] font-bold text-muted-silver hover:text-burnished-gold hover:bg-rich-charcoal/30 transition-colors border-r border-dark-gold/10"
+        >
           Editar
         </button>
-        <button onClick={() => onDelete(livro.id)} className="flex-1 py-2 px-3 rounded border border-red-900/30 text-red-400/80 text-sm font-bold hover:bg-red-900/10 hover:text-red-400 transition-colors">
-          Excluir
+        <button 
+            onClick={() => onDelete(livro.id)} 
+            className="flex-1 py-3 text-[10px] uppercase tracking-[0.2em] font-bold text-muted-silver hover:text-red-400 hover:bg-red-900/10 transition-colors"
+        >
+          Expurgar
         </button>
       </div>
     </div>

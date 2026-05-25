@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, BookOpen, Star, CheckCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-// Importação corrigida para garantir que encontra o arquivo firebaseConfig.js criado acima
 import { db, auth } from '../firebaseConfig';
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -12,12 +11,11 @@ export default function ListaDesejos() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   
-  // Estado para adicionar novo desejo rápido
   const [novoDesejo, setNovoDesejo] = useState({
     titulo: '',
     autor: '',
     genero: '',
-    status: 'QUERO_LER' // Padrão forçado
+    status: 'QUERO_LER'
   });
 
   // 1. Autenticação e Busca
@@ -35,7 +33,9 @@ export default function ListaDesejos() {
 
   const fetchDesejos = async (userId) => {
     try {
-      const q = query(collection(db, "livros"), where("userId", "==", userId));
+      setLoading(true);
+      // Alterado para buscar por 'uid', padronizando com o Oráculo
+      const q = query(collection(db, "livros"), where("uid", "==", userId));
       const querySnapshot = await getDocs(q);
       
       const lista = querySnapshot.docs.map(doc => ({
@@ -43,8 +43,11 @@ export default function ListaDesejos() {
         ...doc.data()
       }));
 
-      // FILTRO: Apenas 'QUERO_LER'
-      const apenasDesejos = lista.filter(livro => livro.status === 'QUERO_LER');
+      // FILTRO: Apenas 'QUERO_LER' (independente de maiúsculo/minúsculo)
+      const apenasDesejos = lista.filter(livro => 
+        livro.status && livro.status.toUpperCase() === 'QUERO_LER'
+      );
+      
       setLivrosDesejados(apenasDesejos);
     } catch (err) {
       console.error("Erro ao buscar desejos:", err);
@@ -53,7 +56,7 @@ export default function ListaDesejos() {
     }
   };
 
-  // 2. Adicionar Desejo
+  // 2. Adicionar Desejo Manual
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!novoDesejo.titulo || !user) return;
@@ -61,9 +64,9 @@ export default function ListaDesejos() {
     try {
       await addDoc(collection(db, "livros"), {
         ...novoDesejo,
-        userId: user.uid,
+        uid: user.uid, // Padronizado para 'uid'
         createdAt: new Date().toISOString(),
-        status: 'QUERO_LER' // Garante que entra como desejo
+        status: 'QUERO_LER'
       });
 
       setNovoDesejo({ titulo: '', autor: '', genero: '', status: 'QUERO_LER' });
@@ -73,7 +76,7 @@ export default function ListaDesejos() {
     }
   };
 
-  // 3. Mover para Lendo/Lido (Atualizar Status)
+  // 3. Mover para Lendo/Lido
   const moverParaHistorico = async (id, novoStatus) => {
     try {
       const livroRef = doc(db, "livros", id);
@@ -81,7 +84,7 @@ export default function ListaDesejos() {
         status: novoStatus,
         dataInicio: novoStatus === 'LENDO' ? new Date().toISOString().split('T')[0] : null
       });
-      fetchDesejos(user.uid); // Recarrega a lista (o livro vai sumir daqui, o que é o esperado)
+      fetchDesejos(user.uid); 
       alert(`Livro movido para "${novoStatus}"!`);
     } catch (err) {
       console.error("Erro ao mover:", err);
@@ -98,7 +101,6 @@ export default function ListaDesejos() {
     }
   };
 
-  // Estilos
   const inputStyle = "w-full bg-rich-charcoal/50 border border-muted-silver/20 rounded-lg p-2.5 text-antique-white focus:ring-1 focus:ring-burnished-gold outline-none placeholder-gray-600 transition-all text-sm";
 
   return (
@@ -160,29 +162,28 @@ export default function ListaDesejos() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {livrosDesejados.map((livro) => (
-                  <div key={livro.id} className="group bg-surface p-5 rounded-xl border border-muted-silver/10 hover:border-burnished-gold/30 transition-all hover:shadow-lg relative">
+                  <div key={livro.id} className="group bg-surface p-5 rounded-xl border border-muted-silver/10 hover:border-burnished-gold/30 transition-all hover:shadow-lg flex flex-col justify-between">
                     
-                    <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-serif-display text-antique-white group-hover:text-burnished-gold transition-colors truncate pr-6">{livro.titulo}</h3>
-                        <button onClick={() => handleDelete(livro.id)} className="text-muted-silver hover:text-red-400 transition-colors">
-                            <Trash2 size={16} />
-                        </button>
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                          <h3 className="text-lg font-serif-display text-antique-white group-hover:text-burnished-gold transition-colors truncate pr-6">{livro.titulo}</h3>
+                          <button onClick={() => handleDelete(livro.id)} className="text-muted-silver hover:text-red-400 transition-colors">
+                              <Trash2 size={16} />
+                          </button>
+                      </div>
+                      <p className="text-sm text-muted-silver mb-4">{livro.autor}</p>
                     </div>
-                    <p className="text-sm text-muted-silver mb-4">{livro.autor}</p>
                     
-                    {/* AÇÕES RÁPIDAS: MOVER PARA OUTRAS LISTAS */}
-                    <div className="flex gap-2 mt-auto pt-4 border-t border-white/5">
+                    <div className="flex gap-2 mt-4 pt-4 border-t border-white/5">
                         <button 
                             onClick={() => moverParaHistorico(livro.id, 'LENDO')}
                             className="flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-bold bg-blue-900/20 text-blue-400 rounded hover:bg-blue-900/40 transition-colors"
-                            title="Começar a Ler"
                         >
                             <Clock size={14} /> Ler Agora
                         </button>
                         <button 
                             onClick={() => moverParaHistorico(livro.id, 'LIDO')}
                             className="flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-bold bg-green-900/20 text-green-400 rounded hover:bg-green-900/40 transition-colors"
-                            title="Já Li"
                         >
                             <CheckCircle size={14} /> Já Li
                         </button>
@@ -193,7 +194,6 @@ export default function ListaDesejos() {
               </div>
             )}
           </div>
-
         </div>
       </div>
     </div>

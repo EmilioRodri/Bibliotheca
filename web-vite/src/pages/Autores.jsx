@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
-// Se der erro nestes imports, certifique-se de rodar: npm install lucide-react
-import { Search, Library, Quote, ArrowRight, Book } from 'lucide-react'; 
+import { Search, Library, Quote, ArrowRight, Book, Feather } from 'lucide-react'; 
 
 // --- IMPORTS REAIS DO SEU PROJETO ---
-// Descomente e verifique se os caminhos estão corretos
 import { Button } from '../components/ui/Button'; 
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebaseConfig';
@@ -12,10 +10,8 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 // ==================================================================================
 // 1. COMPONENTE DE APRESENTAÇÃO (VIEW)
-// Responsável APENAS pelo visual 3D. Só recebe dados prontos.
 // ==================================================================================
 const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWiki }) => {
-  // --- HOOKS DE ANIMAÇÃO (Seguros aqui pois o componente só renderiza com dados) ---
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
@@ -25,12 +21,12 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
   const rotateX = useTransform(mouseY, [-0.5, 0.5], ["12deg", "-12deg"]); 
   const rotateY = useTransform(mouseX, [-0.5, 0.5], ["-12deg", "12deg"]);
 
-  const sheenOpacity = useTransform(mouseY, [-0.5, 0.5], [0, 0.4]);
+  const sheenOpacity = useTransform(mouseY, [-0.5, 0.5], [0, 0.3]);
   const sheenGradient = useTransform(
     mouseX, 
     [-0.5, 0.5], 
-    ["linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0.6) 50%, transparent 55%)", 
-     "linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.0) 50%, transparent 55%)"]
+    ["linear-gradient(115deg, transparent 40%, rgba(194,168,120,0.15) 45%, rgba(194,168,120,0.3) 50%, transparent 55%)", 
+     "linear-gradient(115deg, transparent 40%, rgba(194,168,120,0.0) 45%, rgba(194,168,120,0.0) 50%, transparent 55%)"]
   );
 
   const shadowX = useTransform(mouseX, [-0.5, 0.5], ["-30px", "30px"]);
@@ -38,7 +34,6 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
 
   const defaultImage = "https://images.unsplash.com/photo-1455390582262-044cdead277a?q=80&w=1000&auto=format&fit=crop"; 
 
-  // Preparação de dados para renderização
   const dadosAtuais = useMemo(() => {
     if (!selecionado) return null;
     const data = {
@@ -52,7 +47,6 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
     return data;
   }, [selecionado, wikiData]);
 
-  // Handlers
   function handleMouseMove(event) {
     const rect = event.currentTarget.getBoundingClientRect();
     const width = rect.width;
@@ -69,16 +63,13 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full bg-[#050505] text-white font-sans overflow-hidden selection:bg-orange-500/30">
+    // Removidos os fundos duros para que a textura global orgânica apareça
+    <div className="flex flex-col md:flex-row h-screen w-full bg-transparent text-antique-white font-sans-modern overflow-hidden">
       
-      {/* Background Noise */}
-      <div className="absolute inset-0 opacity-[0.05] pointer-events-none z-0 mix-blend-overlay" style={{ backgroundImage: `url("https://www.transparenttextures.com/patterns/stardust.png")` }}></div>
-      <div className="absolute inset-0 bg-gradient-to-br from-[#050505] via-[#0f0f0f] to-[#1a1a1a] -z-10"></div>
-
       {/* Sidebar Esquerda (Navegação) */}
-      <nav className="w-full md:w-24 border-r border-white/5 z-30 flex md:flex-col items-center py-6 bg-[#0a0a0a]/80 backdrop-blur-md">
+      <nav className="w-full md:w-24 border-r border-dark-gold/10 z-30 flex md:flex-col items-center py-6 bg-surface/60 backdrop-blur-md shadow-editorial">
         <div className="mb-8 hidden md:block">
-          <Library className="w-8 h-8 text-orange-100/80" />
+          <Feather className="w-8 h-8 text-burnished-gold" />
         </div>
         
         <div className="flex md:flex-col gap-6 overflow-x-auto md:overflow-visible px-4 md:px-0 scrollbar-hide w-full md:w-auto items-center">
@@ -91,7 +82,7 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
                     onClick={() => setSelecionado(autor)}
                     className={`relative group shrink-0 transition-all duration-500 ${isActive ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
                 >
-                    <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-all duration-300 ${isActive ? 'border-orange-200/60 scale-110 shadow-[0_0_20px_rgba(255,210,180,0.2)]' : 'border-white/10 grayscale'}`}>
+                    <div className={`w-12 h-12 rounded-full overflow-hidden border transition-all duration-300 ${isActive ? 'border-burnished-gold scale-110 shadow-[0_0_15px_rgba(194,168,120,0.3)]' : 'border-dark-gold/30 grayscale'}`}>
                         <img src={thumb || defaultImage} alt={autor.nome} className="w-full h-full object-cover" onError={(e) => e.target.src = defaultImage} />
                     </div>
                 </button>
@@ -107,11 +98,11 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
         onMouseLeave={handleMouseLeave}
         style={{ perspective: "1200px" }} 
       >
-        {/* Topbar */}
+        {/* Topbar Invisível para manter a estrutura */}
         <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-center z-40 pointer-events-none px-12">
-            <div className="text-xs font-bold tracking-[0.3em] uppercase pointer-events-auto text-white/30 border-b border-white/10 pb-2"></div>
+            <div className="text-xs font-bold tracking-[0.3em] uppercase pointer-events-auto text-muted-silver border-b border-dark-gold/20 pb-2"></div>
             <div className="pointer-events-auto flex items-center gap-4">
-                <Search className="w-5 h-5 cursor-pointer hover:text-white transition-colors text-white/60" />
+                <Search className="w-5 h-5 cursor-pointer hover:text-burnished-gold transition-colors text-muted-silver" />
             </div>
         </div>
 
@@ -127,28 +118,28 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
                     transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     className="flex-1 flex flex-col justify-center items-start text-left max-w-xl z-20 pointer-events-none md:pointer-events-auto"
                 >
-                    <div className="flex items-center gap-3 text-orange-200/50 font-mono text-xs tracking-widest uppercase mb-6">
-                        <span className="bg-white/5 px-2 py-1 rounded border border-white/5">{dadosAtuais.anos || "Autor"}</span>
-                        <span className="w-px h-3 bg-white/20"></span>
-                        <span>{dadosAtuais.local || "Biblioteca"}</span>
+                    <div className="flex items-center gap-3 text-burnished-gold font-sans-modern text-[10px] tracking-widest uppercase mb-6 font-medium">
+                        <span className="bg-burnished-gold/10 px-2 py-1 rounded-sm border border-burnished-gold/20">{dadosAtuais.anos || "Autor Clássico"}</span>
+                        <span className="w-px h-3 bg-dark-gold/40"></span>
+                        <span className="text-muted-silver">{dadosAtuais.local || "Acervo"}</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-serif text-white leading-[0.9] tracking-tight mb-8">
+                    <h1 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-serif-display text-antique-white leading-[0.95] tracking-tight mb-8">
                         {dadosAtuais.nome ? dadosAtuais.nome.split(" ").slice(0, 3).map((word, i) => (
                             <span key={i} className="block">{word}</span>
                         )) : "Sem Nome"}
                     </h1>
 
-                    <div className="relative pl-6 border-l-2 border-orange-500/30">
-                        <p className="text-white/60 text-sm md:text-lg leading-relaxed font-sans line-clamp-6">
-                             {loadingWiki ? "Buscando informações..." : dadosAtuais.bio}
+                    <div className="relative pl-6 border-l border-burnished-gold/40">
+                        <p className="text-muted-silver text-sm md:text-base leading-loose font-sans-modern line-clamp-6">
+                             {loadingWiki ? "Consultando os arquivos históricos..." : dadosAtuais.bio}
                         </p>
                     </div>
 
-                    <div className="mt-12 flex gap-12 border-t border-white/5 pt-8 w-full">
+                    <div className="mt-12 flex gap-12 border-t border-dark-gold/20 pt-8 w-full">
                         <div>
-                            <span className="block text-4xl font-serif text-white">{dadosAtuais.livros ? dadosAtuais.livros.length : 0}</span>
-                            <span className="text-[10px] uppercase tracking-widest text-white/30 font-bold">Obras</span>
+                            <span className="block text-4xl font-serif-display text-burnished-gold">{dadosAtuais.livros ? dadosAtuais.livros.length : 0}</span>
+                            <span className="text-[10px] uppercase tracking-[0.2em] text-muted-silver font-bold">Obras na Coleção</span>
                         </div>
                     </div>
                 </motion.div>
@@ -169,32 +160,32 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
                         }}
                         className="w-full h-full relative"
                     >
-                        {/* Shadow com variáveis de transform seguras */}
+                        {/* Shadow Editorial Profunda */}
                         <motion.div 
                             style={{ 
                                 x: shadowX, 
                                 y: shadowY,
-                                opacity: 0.5
+                                opacity: 0.7
                             }}
-                            className="absolute top-8 left-8 w-full h-full bg-black blur-3xl -z-10 rounded-sm"
+                            className="absolute top-12 left-12 w-full h-full bg-black blur-3xl -z-10 rounded-sm"
                         />
 
                         {/* Imagem Container */}
-                        <div className="relative w-full h-full rounded-[2px] overflow-hidden border border-white/10 bg-[#121212] shadow-2xl">
+                        <div className="relative w-full h-full rounded-sm overflow-hidden border border-dark-gold/20 bg-surface shadow-2xl">
                             <motion.img 
                                 src={dadosAtuais.imagem} 
                                 alt={dadosAtuais.nome}
-                                className="w-full h-full object-cover object-top filter brightness-[0.85] contrast-[1.1] group-hover:brightness-100 transition-all duration-700 ease-out"
+                                className="w-full h-full object-cover object-top filter brightness-[0.8] contrast-[1.1] grayscale-[20%] group-hover:brightness-100 group-hover:grayscale-0 transition-all duration-700 ease-out"
                                 onError={(e) => e.target.src = defaultImage}
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 opacity-90" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-rich-charcoal/90 via-transparent to-black/10 opacity-90" />
                             
                             <div className="absolute bottom-10 left-8 right-8 z-20 transform translate-z-10">
-                                <Quote className="text-orange-400 w-8 h-8 mb-4 opacity-80" />
-                                <p className="font-serif text-2xl md:text-3xl text-white leading-tight italic drop-shadow-lg text-pretty">
+                                <Quote className="text-burnished-gold w-8 h-8 mb-4 opacity-80" />
+                                <p className="font-serif-display text-2xl md:text-3xl text-antique-white leading-tight italic text-pretty">
                                     "{dadosAtuais.citacao || (dadosAtuais.livros[0] && dadosAtuais.livros[0].titulo) || "Coleção Pessoal"}"
                                 </p>
-                                <div className="h-1 w-12 bg-orange-500 mt-6 rounded-full"></div>
+                                <div className="h-px w-16 bg-burnished-gold/50 mt-6"></div>
                             </div>
 
                             <motion.div 
@@ -203,10 +194,10 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
                             />
                         </div>
 
-                        {/* Elementos flutuantes */}
+                        {/* Borda flutuante */}
                         <motion.div 
-                            style={{ translateZ: "50px" }}
-                            className="absolute -inset-6 border border-white/5 rounded-sm z-40 pointer-events-none hidden lg:block"
+                            style={{ translateZ: "40px" }}
+                            className="absolute -inset-5 border border-burnished-gold/20 rounded-sm z-40 pointer-events-none hidden lg:block"
                         />
                     </motion.div>
                 </motion.div>
@@ -217,28 +208,27 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
       </main>
 
       {/* Sidebar Direita (Livros) */}
-      <aside className="hidden xl:flex w-80 border-l border-white/5 z-30 bg-[#0a0a0a]/50 backdrop-blur-sm p-8 flex-col h-full">
-        <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Bibliografia</h3>
-             <ArrowRight size={14} className="text-white/30" />
+      <aside className="hidden xl:flex w-80 border-l border-dark-gold/10 z-30 bg-surface/50 backdrop-blur-sm p-8 flex-col h-full">
+        <div className="flex justify-between items-center mb-8 pb-4 border-b border-dark-gold/20">
+             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-silver">Bibliografia Pessoal</h3>
+             <Book size={14} className="text-burnished-gold/50" />
         </div>
 
         <div className="flex-1 flex flex-col gap-4 overflow-y-auto scrollbar-hide pr-2">
-            {/* REMOVIDO AnimatePresence complexo para evitar bugs de lista */}
             <div className="flex flex-col gap-4">
-                {dadosAtuais && dadosAtuais.livros && dadosAtuais.livros.map((livro, index) => (
+                {dadosAtuais && dadosAtuais.livros && dadosAtuais.livros.map((livro) => (
                     <div
                         key={`${dadosAtuais.id}-${livro.id}`}
-                        className="group cursor-pointer flex gap-4 items-center p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5"
+                        className="group cursor-pointer flex gap-4 items-center p-3 rounded-sm hover:bg-rich-charcoal/40 transition-colors border border-transparent hover:border-dark-gold/20"
                     >
-                        <div className="w-12 h-16 shrink-0 rounded-[2px] overflow-hidden shadow-lg bg-white/10 relative">
-                            <img src={livro.capa} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => e.target.src = "https://via.placeholder.com/150x200?text=Capa"} />
+                        <div className="w-12 h-16 shrink-0 rounded-sm overflow-hidden shadow-md bg-surface relative">
+                            <img src={livro.capa} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => e.target.src = "https://via.placeholder.com/150x200/1A1A1A/D4AF37?text=Capa"} />
                         </div>
                         <div className="flex flex-col">
-                            <h4 className="font-serif text-white/90 text-sm leading-tight group-hover:text-orange-200 transition-colors line-clamp-2">
+                            <h4 className="font-serif-display text-antique-white/90 text-sm leading-tight group-hover:text-burnished-gold transition-colors line-clamp-2">
                                 {livro.titulo}
                             </h4>
-                            <span className="text-[10px] text-white/40 mt-1 font-mono">
+                            <span className="text-[10px] text-muted-silver mt-1 font-sans-modern uppercase tracking-widest">
                                 {livro.ano}
                             </span>
                         </div>
@@ -253,10 +243,9 @@ const AutoresView = ({ autores, selecionado, setSelecionado, wikiData, loadingWi
 
 // ==================================================================================
 // 2. COMPONENTE LÓGICO (CONTAINER)
-// Responsável pelos DADOS e ESTADO. Só monta a View quando estiver tudo pronto.
 // ==================================================================================
 export default function Autores() {
-  const { user } = useAuth(); // Se der erro aqui, verifique se está dentro do AuthProvider no App.js
+  const { user } = useAuth(); 
   
   const [autores, setAutores] = useState([]);
   const [selecionado, setSelecionado] = useState(null);
@@ -264,17 +253,13 @@ export default function Autores() {
   const [wikiData, setWikiData] = useState(null);
   const [loadingWiki, setLoadingWiki] = useState(false);
 
-  // --- BUSCA DADOS FIREBASE ---
   useEffect(() => {
-    // Proteção: Se não tiver user, para de carregar e retorna.
     if (!user) {
         setLoading(false);
         return;
     }
 
     setLoading(true);
-
-    // Variável para evitar atualização de estado se o componente desmontar
     let isMounted = true; 
 
     const q = query(collection(db, "livros"), where("uid", "==", user.uid));
@@ -331,7 +316,6 @@ export default function Autores() {
     };
   }, [user]);
 
-  // --- BUSCA WIKIPEDIA ---
   useEffect(() => {
     if (!selecionado) return;
     let isMounted = true;
@@ -348,7 +332,7 @@ export default function Autores() {
              setWikiData({
                bio: data.extract,
                imagem: data.originalimage?.source || data.thumbnail?.source,
-               anos: data.description ? data.description.charAt(0).toUpperCase() + data.description.slice(1) : "Escritor(a)", 
+               anos: data.description ? data.description.charAt(0).toUpperCase() + data.description.slice(1) : "Panteão Clássico", 
                local: "Via Wikipédia"
              });
           }
@@ -364,48 +348,52 @@ export default function Autores() {
     return () => { isMounted = false; };
   }, [selecionado?.id]);
 
-  // --- RENDERIZAÇÃO CONDICIONAL SEGURA (LÓGICA) ---
-  // Aqui podemos usar returns condicionais à vontade, pois não estamos dentro do componente visual que tem hooks 3D.
-
   if (loading) {
     return (
-        <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white/50 font-serif">
-            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
-            <p className="text-xs uppercase tracking-widest">Carregando Acervo...</p>
+        <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-muted-silver font-serif-display relative z-10">
+            <div className="w-8 h-8 border-2 border-dark-gold/30 border-t-burnished-gold rounded-full animate-spin mb-4"></div>
+            <p className="text-xs font-sans-modern uppercase tracking-widest text-burnished-gold">Explorando o Acervo...</p>
         </div>
     );
   }
 
   if (!user) {
      return (
-        <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white gap-4">
-            <h2 className="font-serif text-3xl text-white/80">Faça login para ver sua galeria</h2>
-            <Button onClick={() => window.location.href='/login'} className="bg-white text-black hover:bg-gray-200">Ir para Login</Button>
+        <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-antique-white gap-6 relative z-10">
+            <Feather size={48} className="text-burnished-gold" />
+            <h2 className="font-serif-display text-4xl text-burnished-gold">Identifique-se no Arquivo</h2>
+            <p className="text-muted-silver font-light max-w-md text-center">É necessário acesso para consultar o Panteão de Autores.</p>
+            <Button onClick={() => window.location.href='/login'} className="bg-burnished-gold text-rich-charcoal hover:bg-antique-white mt-4">
+                Entrar na Bibliotheca
+            </Button>
         </div>
      );
   }
 
   if (autores.length === 0) {
      return (
-        <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white gap-4">
-            <h2 className="font-serif text-3xl text-white/80">Sua galeria está vazia</h2>
-            <div className="flex flex-col items-center gap-2 text-white/50 mb-4">
-                <Book size={48} />
-                <p>Nenhum autor encontrado nos seus livros.</p>
+        <div className="min-h-screen bg-transparent flex flex-col items-center justify-center text-antique-white gap-6 relative z-10">
+            <div className="flex flex-col items-center gap-4 text-burnished-gold/50 mb-4">
+                <Book size={56} />
             </div>
-            <Button onClick={() => window.location.href='/adicionar'} className="bg-white text-black hover:bg-gray-200">Adicionar Primeiro Livro</Button>
+            <h2 className="font-serif-display text-4xl text-burnished-gold">Panteão Vazio</h2>
+            <p className="text-muted-silver font-light max-w-md text-center">Nenhum autor foi descoberto nos seus registros ainda.</p>
+            <Button onClick={() => window.location.href='/adicionar'} className="bg-burnished-gold text-rich-charcoal hover:bg-antique-white mt-4">
+                Catalogar Primeira Obra
+            </Button>
         </div>
      );
   }
 
-  // Se passou por tudo, monta a View 3D com dados seguros
   return (
-    <AutoresView 
-        autores={autores} 
-        selecionado={selecionado} 
-        setSelecionado={setSelecionado} 
-        wikiData={wikiData} 
-        loadingWiki={loadingWiki} 
-    />
+    <div className="relative z-10">
+        <AutoresView 
+            autores={autores} 
+            selecionado={selecionado} 
+            setSelecionado={setSelecionado} 
+            wikiData={wikiData} 
+            loadingWiki={loadingWiki} 
+        />
+    </div>
   );
 }

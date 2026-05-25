@@ -24,6 +24,7 @@ import DetalhesLivro from './pages/DetalhesLivro';
 import Landing from './pages/Landing';
 import Autores from './pages/Autores';
 import Recomendacoes from './pages/Recomendacoes';
+import Estudio from './pages/Estudio'; 
 
 const AppContent = () => {
   const location = useLocation();
@@ -50,6 +51,9 @@ const AppContent = () => {
              <Route path="/recomendacoes" element={<Recomendacoes />} />
              <Route path="/editar/:id" element={<Editar />} />
              <Route path="/livro/:id" element={<DetalhesLivro />} />
+             
+             {/* Rota do Estúdio */}
+             <Route path="/estudio" element={<Estudio />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

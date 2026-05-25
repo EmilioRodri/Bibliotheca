@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-// IMPORTANTE: Adicionei useLocation
 import { useNavigate, useLocation } from 'react-router-dom';
 import LivroCard from '../components/LivroCard';
 import EstanteVirtual from '../components/EstanteVirtual'; 
 import { Button } from '../components/ui/Button';
-import { LayoutGrid, Library, Search, Calendar, Filter, BookOpen } from 'lucide-react'; 
+import { LayoutGrid, Library, Search, Filter, BookOpen, Feather } from 'lucide-react'; 
 
 // Firebase
 import { db } from '../firebaseConfig';
@@ -14,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 export default function Historico() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); // Hook para pegar os parâmetros enviados
+  const location = useLocation(); 
   
   const [livros, setLivros] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,9 +23,6 @@ export default function Historico() {
 
   // Filtros
   const [busca, setBusca] = useState('');
-  
-  // --- MUDANÇA AQUI: Inicia o filtro com o que veio da navegação (se existir) ---
-  // Se location.state.filtro for 'QUERO_LER', ele já abre filtrado.
   const [filtroStatus, setFiltroStatus] = useState(location.state?.filtro || 'todos');
   
   // Estados de Data
@@ -52,7 +48,7 @@ export default function Historico() {
   }, [user]);
 
   const handleDelete = async (id) => {
-    if(!window.confirm("Eliminar este livro?")) return;
+    if(!window.confirm("Deseja expurgar esta obra do seu acervo?")) return;
     try { await deleteDoc(doc(db, "livros", id)); } 
     catch (error) { console.error(error); }
   };
@@ -75,109 +71,123 @@ export default function Historico() {
         return new Date(b.dataAdicao) - new Date(a.dataAdicao);
     });
 
-  const inputClass = "bg-rich-charcoal/50 border border-muted-silver/20 rounded-lg p-2.5 text-antique-white focus:ring-1 focus:ring-burnished-gold focus:border-burnished-gold outline-none placeholder-gray-600 transition-all text-sm";
-  const labelClass = "text-xs font-bold text-muted-silver uppercase tracking-wider mb-1 block";
+  // Estilos tipográficos clássicos para os formulários
+  const inputClass = "bg-surface/50 border border-dark-gold/20 rounded-sm p-3 text-antique-white focus:border-burnished-gold outline-none transition-colors font-sans-modern text-sm w-full";
+  const labelClass = "text-[10px] font-bold text-muted-silver uppercase tracking-[0.2em] mb-2 block";
 
   return (
-    <div className="min-h-screen bg-rich-charcoal text-antique-white p-6 md:p-12 animate-fade-in">
-      <div className="max-w-7xl mx-auto space-y-8">
+    // Removido bg-rich-charcoal para vazar a textura
+    <div className="min-h-screen bg-transparent text-antique-white pb-24 animate-fade-in relative z-10">
+      <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
         
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-muted-silver/10 pb-6 gap-6">
+        {/* CABEÇALHO EDITORIAL */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-dark-gold/20 pb-8 gap-6">
           <div>
-              <h1 className="font-serif-display text-4xl text-burnished-gold mb-2">Minha Coleção</h1>
-              <p className="text-muted-silver font-light">Gerencie e organize sua jornada literária.</p>
+              <h1 className="font-serif-display text-5xl text-burnished-gold mb-3 tracking-tight">Acervo Pessoal</h1>
+              <p className="text-muted-silver font-light text-lg">Catálogo histórico das suas jornadas literárias.</p>
           </div>
           
-          <div className="flex flex-wrap gap-3 items-center">
-              <div className="bg-surface border border-muted-silver/10 rounded-lg p-1 flex">
-                 <button onClick={() => setModoVisualizacao('grid')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${modoVisualizacao === 'grid' ? 'bg-burnished-gold text-rich-charcoal' : 'text-muted-silver hover:text-white'}`}>
-                    <LayoutGrid size={16} /> Grid
+          <div className="flex flex-wrap gap-4 items-center">
+              <div className="bg-surface/60 border border-dark-gold/20 rounded-sm p-1 flex shadow-editorial">
+                 <button onClick={() => setModoVisualizacao('grid')} className={`flex items-center gap-2 px-4 py-2 rounded-sm text-xs uppercase tracking-widest font-medium transition-all ${modoVisualizacao === 'grid' ? 'bg-burnished-gold text-rich-charcoal' : 'text-muted-silver hover:text-antique-white'}`}>
+                    <LayoutGrid size={14} /> Índice
                  </button>
-                 <button onClick={() => setModoVisualizacao('estante')} className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${modoVisualizacao === 'estante' ? 'bg-burnished-gold text-rich-charcoal' : 'text-muted-silver hover:text-white'}`}>
-                    <Library size={16} /> Estante 3D
+                 <button onClick={() => setModoVisualizacao('estante')} className={`flex items-center gap-2 px-4 py-2 rounded-sm text-xs uppercase tracking-widest font-medium transition-all ${modoVisualizacao === 'estante' ? 'bg-burnished-gold text-rich-charcoal' : 'text-muted-silver hover:text-antique-white'}`}>
+                    <Library size={14} /> Estante
                  </button>
               </div>
-              <Button onClick={() => navigate('/adicionar')} className="shadow-lg hover:shadow-burnished-gold/20">+ Novo Livro</Button>
+              <Button onClick={() => navigate('/adicionar')} className="bg-transparent border border-burnished-gold text-burnished-gold hover:bg-burnished-gold hover:text-rich-charcoal rounded-sm uppercase tracking-widest text-xs py-3 px-6 transition-all">
+                  Catalogar Nova Obra
+              </Button>
           </div>
         </header>
         
-        <div className="bg-surface p-6 rounded-xl border border-muted-silver/10 shadow-xl space-y-4">
-            <div className="flex items-center gap-2 text-burnished-gold mb-2">
-                <Filter size={18} />
-                <span className="text-sm font-bold uppercase tracking-widest">Filtros Avançados</span>
+        {/* PAINEL DE BUSCA - Estilo Ficha de Biblioteca */}
+        <div className="bg-surface/40 p-8 rounded-sm border border-dark-gold/10 shadow-editorial space-y-6">
+            <div className="flex items-center gap-3 text-burnished-gold mb-4 border-b border-dark-gold/10 pb-4">
+                <Filter size={16} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Filtros de Catalogação</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="lg:col-span-1">
-                    <label className={labelClass}>Buscar</label>
+                    <label className={labelClass}>Consultar Registros</label>
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 text-gray-500 h-4 w-4" />
-                        <input type="text" placeholder="Título ou Autor..." className={`${inputClass} w-full pl-9`} value={busca} onChange={(e) => setBusca(e.target.value)} />
+                        <Search className="absolute left-3 top-3 text-dark-gold h-4 w-4" />
+                        <input type="text" placeholder="Título ou Autor..." className={`${inputClass} pl-10`} value={busca} onChange={(e) => setBusca(e.target.value)} />
                     </div>
                 </div>
 
-                <div className="lg:col-span-1 flex gap-2">
+                <div className="lg:col-span-1 flex gap-4">
                     <div className="flex-1">
-                        <label className={labelClass}>De</label>
-                        <input type="date" className={inputClass + " w-full"} value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} />
+                        <label className={labelClass}>Início (De)</label>
+                        <input type="date" className={inputClass} value={filtroDataInicio} onChange={(e) => setFiltroDataInicio(e.target.value)} />
                     </div>
                     <div className="flex-1">
-                        <label className={labelClass}>Até</label>
-                        <input type="date" className={inputClass + " w-full"} value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} />
+                        <label className={labelClass}>Término (Até)</label>
+                        <input type="date" className={inputClass} value={filtroDataFim} onChange={(e) => setFiltroDataFim(e.target.value)} />
                     </div>
                 </div>
 
-                <div className="lg:col-span-1 flex gap-2">
+                <div className="lg:col-span-1 flex gap-4">
                     <div className="flex-1">
                         <label className={labelClass}>Status</label>
-                        <select className={inputClass + " w-full cursor-pointer"} value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
-                            <option value="todos">Todos</option>
-                            <option value="LIDO">✅ Lidos</option>
-                            <option value="LENDO">📖 Lendo</option>
-                            <option value="QUERO_LER">🌟 Desejos</option>
-                            <option value="ABANDONADO">❌ Abandonados</option>
+                        <select className={inputClass + " cursor-pointer appearance-none"} value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+                            <option value="todos">Todo o Acervo</option>
+                            <option value="LIDO">Obras Lidas</option>
+                            <option value="LENDO">Leitura Atual</option>
+                            <option value="QUERO_LER">Lista de Desejos</option>
+                            <option value="ABANDONADO">Abandonados</option>
                         </select>
                     </div>
                     <div className="flex-1">
-                        <label className={labelClass}>Ordenar</label>
-                        <select className={inputClass + " w-full cursor-pointer"} value={ordenacao} onChange={(e) => setOrdenacao(e.target.value)}>
-                            <option value="recente">Recentes</option>
-                            <option value="antigo">Antigos</option>
-                            <option value="nota">Melhor Nota</option>
+                        <label className={labelClass}>Ordem</label>
+                        <select className={inputClass + " cursor-pointer appearance-none"} value={ordenacao} onChange={(e) => setOrdenacao(e.target.value)}>
+                            <option value="recente">Mais Recentes</option>
+                            <option value="antigo">Mais Antigos</option>
+                            <option value="nota">Maior Nota</option>
                         </select>
                     </div>
                 </div>
 
                 <div className="lg:col-span-1 flex items-end">
-                    <button onClick={() => setSoFavoritos(!soFavoritos)} className={`w-full h-[42px] rounded-lg border transition-all flex items-center justify-center gap-2 text-sm font-medium ${soFavoritos ? 'bg-red-900/20 border-red-500/50 text-red-400' : 'border-muted-silver/20 text-muted-silver hover:border-burnished-gold/50 hover:text-white'}`}>
-                        {soFavoritos ? '❤️ Apenas Favoritos' : '🤍 Ver Favoritos'}
+                    <button 
+                        onClick={() => setSoFavoritos(!soFavoritos)} 
+                        className={`w-full h-[46px] rounded-sm border transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest font-bold ${
+                            soFavoritos 
+                            ? 'bg-burnished-gold/10 border-burnished-gold text-burnished-gold' 
+                            : 'bg-transparent border-dark-gold/20 text-muted-silver hover:border-burnished-gold/50 hover:text-antique-white'
+                        }`}
+                    >
+                        {soFavoritos ? 'Obras Favoritas' : 'Filtrar Favoritos'}
                     </button>
                 </div>
             </div>
         </div>
         
+        {/* EXIBIÇÃO DE RESULTADOS */}
         {loading ? (
-           <div className="text-center py-20">
-             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-burnished-gold mx-auto mb-4"></div>
-             <p className="text-muted-silver animate-pulse">Carregando sua biblioteca...</p>
-           </div>
+            <div className="flex flex-col items-center justify-center py-32 text-muted-silver opacity-60 animate-pulse gap-4">
+               <Feather size={32} className="text-burnished-gold" />
+               <p className="font-serif-display text-sm tracking-widest uppercase text-burnished-gold">Explorando estantes...</p>
+            </div>
         ) : livrosFiltrados.length === 0 ? (
-           <div className="text-center py-20 border border-dashed border-muted-silver/10 rounded-xl bg-surface/30">
-              <BookOpen className="h-16 w-16 text-muted-silver/20 mx-auto mb-4" />
-              <p className="text-xl text-muted-silver mb-2">Nenhum livro encontrado.</p>
-              <p className="text-sm text-gray-500">Tente ajustar os filtros ou adicione um novo livro.</p>
+           <div className="text-center py-24 border border-dark-gold/10 rounded-sm bg-surface/30 shadow-editorial">
+              <BookOpen className="h-12 w-12 text-dark-gold/40 mx-auto mb-6" />
+              <p className="font-serif-display text-2xl text-antique-white mb-2">Nenhum registro encontrado.</p>
+              <p className="text-sm font-light text-muted-silver">Ajuste os filtros de busca ou catalogue uma nova obra.</p>
            </div>
         ) : (
-           <div className="animate-slide-up">
+           <div className="animate-slide-up pt-4">
               {modoVisualizacao === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                     {livrosFiltrados.map(livro => (
                         <LivroCard key={livro.id} livro={livro} onDelete={handleDelete} onEdit={(id) => navigate(`/editar/${id}`)}/>
                     ))}
                 </div>
               ) : (
-                <div className="bg-surface border border-muted-silver/10 rounded-xl p-8 shadow-2xl overflow-hidden relative">
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
+                <div className="bg-surface/80 border border-dark-gold/10 rounded-sm p-8 shadow-editorial overflow-hidden relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-rich-charcoal/40 to-transparent pointer-events-none"></div>
                     <EstanteVirtual livros={livrosFiltrados} />
                 </div>
               )}

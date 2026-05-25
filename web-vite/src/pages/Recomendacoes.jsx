@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Zap, Plus, User, Star } from 'lucide-react'; 
+import { ChevronRight, Zap, Plus } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
@@ -9,8 +9,9 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 
-// Endpoint do Java
+// Configurações de API
 const JAVA_RECOMMENDATION_ENDPOINT = "http://localhost:8080/api/recomendar"; 
+const GOOGLE_BOOKS_API_KEY = "AIzaSyCovrCHK0kBJ20wizePd5Y6lDtLMM4x8Rc"; 
 
 export default function Recomendacoes() {
     const { user } = useAuth();
@@ -47,10 +48,22 @@ export default function Recomendacoes() {
         fetchMeusLivros();
     }, [user]);
 
-    const buscarCapaReal = async (livro) => {
+    const buscarCapaReal = async (livro, tentativa = 1) => {
         try {
-            const query = encodeURIComponent(`${livro.titulo} ${livro.autor}`);
-            const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`);
+            const queryStr = encodeURIComponent(`${livro.titulo} ${livro.autor}`);
+            const url = `https://www.googleapis.com/books/v1/volumes?q=${queryStr}&maxResults=1&key=${GOOGLE_BOOKS_API_KEY}`;
+            
+            const response = await fetch(url);
+
+            if ((response.status === 503 || response.status === 429) && tentativa <= 2) {
+                const delay = (tentativa * 2000) + Math.random() * 1000;
+                console.warn(`[Oráculo] O Google barrou a capa de "${livro.titulo}". Retentando em ${Math.round(delay)}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return buscarCapaReal(livro, tentativa + 1); 
+            }
+
+            if (!response.ok) return null;
+
             const data = await response.json();
 
             if (data.items && data.items.length > 0) {
@@ -62,7 +75,7 @@ export default function Recomendacoes() {
             }
             return null;
         } catch (error) {
-            console.warn(`Não foi possível achar capa para: ${livro.titulo}`);
+            console.error(`Falha ao buscar capa para ${livro.titulo}:`, error);
             return null;
         }
     };
@@ -92,7 +105,7 @@ export default function Recomendacoes() {
                 }));
 
             if (perfilIA.length === 0 && mood === 'inteligente') {
-                setMotivo("Preciso de mais dados! Adicione livros lidos no seu Histórico primeiro.");
+                setMotivo("Preciso de mais dados! Adicione livros lidos primeiro.");
                 setLoading(false);
                 return;
             }
@@ -107,127 +120,99 @@ export default function Recomendacoes() {
                 body: JSON.stringify({ perfil: perfilIA, mood: mood })
             });
             
-            if (!response.ok) {
-                const erroTexto = await response.text();
-                throw new Error(`Erro ${response.status}: ${erroTexto}`);
-            }
+            if (!response.ok) throw new Error("Erro no servidor Java.");
 
             const result = await response.json(); 
-            
-            if (!result.recomendacoes) {
-                 throw new Error("Formato inválido recebido do Oráculo.");
-            }
+            setMotivo(result.motivoGeral); 
 
             const sugestoesUnicas = result.recomendacoes.filter(rec => {
                 const tituloLimpo = rec.titulo.toLowerCase().trim();
                 return !meusLivrosTitulos.some(meuTitulo => tituloLimpo.includes(meuTitulo) || meuTitulo.includes(tituloLimpo));
             });
 
-            const sugestoesComCapasReais = await Promise.all(
-                sugestoesUnicas.map(async (rec) => {
-                    const capaReal = await buscarCapaReal(rec);
-                    return {
-                        ...rec,
-                        urlCapa: capaReal || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400&auto=format&fit=crop"
-                    };
-                })
-            );
+            for (const rec of sugestoesUnicas) {
+                const capaReal = await buscarCapaReal(rec);
+                const novoLivro = {
+                    ...rec,
+                    urlCapa: capaReal || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400"
+                };
 
-            setRecomendacoes(sugestoesComCapasReais);
-            setMotivo(result.motivoGeral); 
+                setRecomendacoes(prev => [...prev, novoLivro]);
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
 
         } catch (error) {
             console.error("Erro na consulta ao Oráculo:", error);
-            setMotivo("O Oráculo encontrou uma névoa. Verifique se o servidor Java está rodando.");
+            setMotivo("O Oráculo encontrou uma névoa. Verifique o servidor.");
         } finally {
             setLoading(false);
         }
     };
 
     const adicionarAosDesejos = async (livro) => {
-        if (!user) {
-            window.alert("Faça login para salvar livros.");
-            return;
-        }
+        if (!user) return;
 
         try {
-            const novoLivro = {
+            const livroParaSalvar = {
                 uid: user.uid,
-                titulo: livro.titulo,
-                autor: livro.autor,
+                titulo: livro.titulo || "Título Indisponível",
+                autor: livro.autor || "Autor Desconhecido",
                 status: 'QUERO_LER',
-                genero: 'Recomendação',
+                genero: livro.genero || 'Geral',
                 classificacao: 0,
                 totalPaginas: 0,
                 dataInicio: '',
                 dataFim: '',
-                urlCapa: livro.urlCapa,
-                motivoRecomendacao: livro.motivoRecomendacao || '',
+                urlCapa: livro.urlCapa || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400",
+                motivoRecomendacao: livro.motivoRecomendacao || 'Sugerido pelo Oráculo',
                 dataAdicao: new Date().toISOString()
             };
 
-            await addDoc(collection(db, "livros"), novoLivro);
-
-            if(window.confirm(`"${livro.titulo}" salvo! Ir para sua lista de desejos agora?`)) {
-                navigate('/historico', { state: { filtro: 'QUERO_LER' } });
-            } else {
-                setMeusLivrosTitulos(prev => [...prev, livro.titulo.toLowerCase()]);
-                setRecomendacoes(prev => prev.filter(l => l.titulo !== livro.titulo));
-            }
-
+            const docRef = await addDoc(collection(db, "livros"), livroParaSalvar);
+            setRecomendacoes(prev => prev.filter(l => l.titulo !== livro.titulo));
+            window.alert(`"${livro.titulo}" foi adicionado aos seus desejos!`);
         } catch (error) {
-            console.error("Erro ao salvar:", error);
-            window.alert("Erro ao salvar o livro. Tente novamente.");
+            console.error("Erro ao salvar no Firestore:", error);
+            window.alert("Erro ao salvar o livro.");
         }
     };
 
-    // --- ESTILOS PADRONIZADOS (HOME/HISTORICO) ---
     return (
-        <div className="min-h-screen bg-rich-charcoal text-antique-white font-sans selection:bg-burnished-gold selection:text-rich-charcoal pb-24 animate-fade-in">
-            
-            {/* Background Texture (sutil e elegante) */}
-            <div className="fixed inset-0 pointer-events-none z-0">
-                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("https://www.transparenttextures.com/patterns/stardust.png")` }}></div>
-                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-burnished-gold/5 to-transparent" />
-            </div>
-
+        <div className="min-h-screen text-antique-white pb-24 animate-fade-in relative">
             <div className="relative z-10 container mx-auto px-6 py-12 max-w-7xl">
                 
-                <header className="text-center space-y-6 mb-12 border-b border-muted-silver/10 pb-10">
-                    <div className="inline-block p-3 rounded-full bg-burnished-gold/10 border border-burnished-gold/30 mb-2">
-                        <Zap size={32} className="text-burnished-gold" />
+                {/* CABEÇALHO */}
+                <header className="text-center space-y-6 mb-12 border-b border-dark-gold/10 pb-10">
+                    <div className="inline-block p-4 rounded-full border border-dark-gold/20 bg-rich-charcoal">
+                        <Zap size={28} className="text-burnished-gold" />
                     </div>
-                    <h1 className="font-serif-display text-5xl md:text-6xl text-burnished-gold tracking-tight">
-                        O Oráculo de Livros
-                    </h1>
-                    <p className="text-muted-silver text-lg max-w-xl mx-auto font-light">
-                        Deixe que a inteligência da Bibliotheca analise seus hábitos de leitura e revele sua próxima jornada literária.
+                    <h1 className="font-serif-display text-5xl text-burnished-gold tracking-tight">O Oráculo</h1>
+                    <p className="text-muted-silver max-w-xl mx-auto font-light text-lg">
+                        Deixe que a inteligência da Bibliotheca revele sua próxima jornada literária.
                     </p>
                 </header>
 
-                {/* Card de Configuração (Estilo Surface) */}
-                <div className="bg-surface border border-muted-silver/10 p-8 rounded-xl shadow-xl mb-16">
-                    <p className="text-xs text-center text-burnished-gold uppercase tracking-widest mb-6 font-bold">Modo de Consulta</p>
-                    
-                    <div className="flex flex-wrap justify-center gap-3 mb-8">
+                {/* PAINEL DE CONTROLE - Estilo Carta/Encarte */}
+                <div className="bg-surface/80 border border-dark-gold/20 p-10 rounded-sm shadow-editorial mb-16 relative">
+                    <div className="flex flex-wrap justify-center gap-3 mb-10">
                         {[
-                            { id: 'inteligente', label: '🧠 Baseado no meu Gosto' },
-                            { id: 'mystery', label: '🕵️ Mistério' },
-                            { id: 'fantasy', label: '🐉 Fantasia' },
-                            { id: 'history', label: '🏛️ História' },
-                            { id: 'science fiction', label: '🚀 Sci-Fi' },
-                            { id: 'horror', label: '👻 Terror' },
-                        ].map((item) => (
+                            { id: 'inteligente', label: ' Gosto Pessoal' },
+                            { id: 'mystery', label: ' Mistério' },
+                            { id: 'fantasy', label: ' Fantasia' },
+                            { id: 'history', label: ' História' },
+                            { id: 'science fiction', label: ' Sci-Fi' },
+                            { id: 'horror', label: ' Terror' }
+                        ].map((m) => (
                             <button
-                                key={item.id}
-                                onClick={() => setMood(item.id)}
-                                className={`px-5 py-3 rounded-md border transition-all duration-300 text-sm font-bold uppercase tracking-wide ${
-                                    mood === item.id 
-                                    ? 'bg-burnished-gold text-rich-charcoal border-burnished-gold shadow-lg shadow-burnished-gold/20 scale-105' 
-                                    : 'bg-transparent text-muted-silver border-muted-silver/20 hover:border-burnished-gold/50 hover:text-white'
+                                key={m.id}
+                                onClick={() => setMood(m.id)}
+                                className={`px-6 py-3 rounded-sm border transition-all text-xs font-medium uppercase tracking-widest ${
+                                    mood === m.id 
+                                    ? 'bg-burnished-gold text-rich-charcoal border-burnished-gold' 
+                                    : 'bg-transparent text-muted-silver border-dark-gold/20 hover:border-burnished-gold/50 hover:text-antique-white'
                                 }`}
                             >
-                                {item.label}
+                                {m.label}
                             </button>
                         ))}
                     </div>
@@ -236,88 +221,60 @@ export default function Recomendacoes() {
                         <Button 
                             onClick={consultarOraculo} 
                             disabled={loading} 
-                            className={`px-12 py-4 text-lg shadow-xl hover:scale-[1.02] transition-transform w-full md:w-auto font-serif-display ${loading ? 'bg-rich-charcoal/50 text-muted-silver cursor-not-allowed border border-muted-silver/10' : 'bg-burnished-gold text-rich-charcoal shadow-burnished-gold/20'}`}
+                            className={`px-14 py-4 text-lg font-serif-display rounded-sm transition-all ${loading ? 'opacity-50' : 'bg-burnished-gold text-rich-charcoal hover:bg-antique-white shadow-lg shadow-black/20'}`}
                         >
                             {loading ? 'Consultando os astros...' : 'Revelar Destino'}
                         </Button>
-                        <p className="mt-4 text-xs text-muted-silver/50 uppercase tracking-widest">
-                            {meusLivrosDados.length} livros analisados da sua coleção
-                        </p>
                     </div>
                 </div>
 
+                {/* RESULTADOS */}
                 <AnimatePresence mode="wait">
-                    {loading && (
-                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-20 text-burnished-gold/80 text-xl font-serif-display">
-                            <div className="w-10 h-10 border-4 border-burnished-gold/30 border-t-burnished-gold rounded-full animate-spin mx-auto mb-6"></div>
-                            {motivo || "O Oráculo está folheando o destino..."}
-                        </motion.div>
-                    )}
-
-                    {recomendacoes.length > 0 && !loading && (
-                        <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="space-y-10">
-                            <div className="flex items-center justify-center">
-                                <div className="bg-surface px-6 py-4 rounded-full w-fit mx-auto border border-burnished-gold/20 shadow-lg">
-                                    <p className="text-center text-antique-white font-serif text-lg italic flex items-center gap-3">
-                                        <ChevronRight size={20} className="text-burnished-gold" /> {motivo}
-                                    </p>
+                    {(loading || recomendacoes.length > 0) && (
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
+                            {motivo && (
+                                <div className="text-center italic text-muted-silver font-serif text-lg flex items-center justify-center gap-2">
+                                    <ChevronRight size={18} className="text-burnished-gold" /> {motivo}
                                 </div>
-                            </div>
+                            )}
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                                 {recomendacoes.map((livro, index) => (
                                     <motion.div 
-                                        key={livro.titulo} 
-                                        initial={{ opacity: 0, scale: 0.95 }} 
+                                        key={livro.titulo + index} 
+                                        initial={{ opacity: 0, scale: 0.98 }} 
                                         animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: index * 0.15 }}
-                                        className="group relative flex flex-col bg-surface rounded-lg border border-muted-silver/10 overflow-hidden hover:shadow-2xl hover:shadow-burnished-gold/10 transition-all hover:-translate-y-1 h-full"
+                                        className="group flex flex-col bg-surface border border-dark-gold/10 rounded-sm overflow-hidden hover:shadow-editorial hover:border-dark-gold/30 transition-all duration-500 h-full"
                                     >
-                                        <div className="h-72 overflow-hidden relative bg-rich-charcoal">
+                                        <div className="h-72 overflow-hidden relative bg-[#111]">
                                             <img 
                                                 src={livro.urlCapa} 
                                                 alt={livro.titulo} 
                                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100" 
-                                                onError={(e) => e.target.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400"} 
+                                                onError={(e) => {
+                                                    e.target.onerror = null; 
+                                                    e.target.src = "https://via.placeholder.com/400x600/1A1A1A/D4AF37?text=Sem+Capa";
+                                                }} 
                                             />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-rich-charcoal via-transparent to-transparent opacity-80"></div>
                                         </div>
-
-                                        <div className="p-6 flex flex-col flex-grow relative">
-                                            {/* Tag Flutuante */}
-                                            <div className="absolute top-4 right-4 bg-rich-charcoal/80 backdrop-blur-sm p-1.5 rounded-full border border-burnished-gold/30">
-                                                <Star size={14} className="text-burnished-gold fill-burnished-gold" />
-                                            </div>
-
-                                            <div className="mb-4">
-                                                <h3 className="font-serif-display text-xl text-antique-white leading-tight mb-1 group-hover:text-burnished-gold transition-colors">
-                                                    {livro.titulo}
-                                                </h3>
-                                                <p className="text-xs text-muted-silver font-bold uppercase tracking-wider">{livro.autor}</p>
-                                            </div>
+                                        <div className="p-6 flex flex-col flex-grow">
+                                            <h3 className="font-serif-display text-xl text-antique-white mb-2 leading-tight">{livro.titulo}</h3>
+                                            <p className="text-[10px] text-burnished-gold font-bold uppercase tracking-widest mb-4">{livro.autor}</p>
                                             
-                                            <p className="text-sm text-gray-400 line-clamp-4 mb-6 font-light leading-relaxed flex-grow">
+                                            <p className="text-sm text-muted-silver font-light leading-relaxed line-clamp-4 mb-6 flex-grow">
                                                 {livro.motivoRecomendacao}
                                             </p>
-
+                                            
                                             <button 
                                                 onClick={() => adicionarAosDesejos(livro)}
-                                                className="w-full py-3 mt-auto bg-rich-charcoal hover:bg-burnished-gold hover:text-rich-charcoal text-xs font-bold rounded border border-muted-silver/20 text-muted-silver hover:border-burnished-gold transition-all uppercase tracking-widest flex items-center justify-center gap-2 group-hover:border-burnished-gold/30"
+                                                className="w-full pt-4 mt-auto bg-transparent hover:text-antique-white text-muted-silver text-[10px] font-medium border-t border-dark-gold/10 transition-colors uppercase tracking-widest flex items-center justify-center gap-2 group-hover:border-dark-gold/30 group-hover:text-burnished-gold"
                                             >
-                                                <Plus size={16} /> Adicionar aos Desejos
+                                                <Plus size={14} /> Adicionar aos Desejos
                                             </button>
                                         </div>
                                     </motion.div>
                                 ))}
                             </div>
-                        </motion.div>
-                    )}
-
-                    {recomendacoes.length === 0 && !loading && motivo && (
-                        <motion.div key="no-results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20 text-muted-silver font-serif">
-                            <User size={48} className="mx-auto mb-4 opacity-20" />
-                            <p className="text-xl max-w-md mx-auto text-antique-white">{motivo}</p>
-                            <p className="mt-4 text-sm text-gray-500">Tente mudar o modo de consulta ou adicione mais livros à sua biblioteca.</p>
                         </motion.div>
                     )}
                 </AnimatePresence>

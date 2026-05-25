@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-// Certifique-se que este caminho está correto (firebaseConfig ou firebase)
 import { auth } from '../firebaseConfig'; 
+import Logo from '../components/Logo';
+import { Feather } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -17,104 +18,122 @@ export default function Login() {
     setError('');
 
     try {
-      // 1. Faz o login no Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, senha);
       const user = userCredential.user;
-
-      // 2. CRUCIAL: Pega o Token JWT do usuário
       const token = await user.getIdToken();
-
-      // 3. CRUCIAL: Salva o token no navegador para usar nas requisições ao Java
       localStorage.setItem('token', token);
       
-      console.log("Login realizado! Token salvo:", token.substring(0, 10) + "...");
-
-      // 4. Redireciona para a Home
+      console.log("Acesso concedido. Chave mestra registrada.");
       navigate('/home'); 
 
     } catch (err) {
       console.error(err);
-      // Tratamento de erros amigável
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-         setError('E-mail ou senha incorretos.');
+         setError('Credenciais inválidas. Os arquivos permanecem selados.');
       } else if (err.code === 'auth/too-many-requests') {
-         setError('Muitas tentativas. Tente novamente mais tarde.');
+         setError('Muitas tentativas ao portão. Aguarde antes de tentar novamente.');
       } else {
-         setError('Erro ao entrar. Verifique o console.');
+         setError('Ocorreu uma falha no selo de segurança. Verifique a conexão.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // --- ESTILOS ATUALIZADOS (Padrão Home/Histórico) ---
-  const inputStyle = "flex h-10 w-full rounded-lg border border-muted-silver/20 bg-rich-charcoal/50 px-3 py-2 text-sm text-antique-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-burnished-gold focus:border-burnished-gold transition-all";
-  
-  // Rótulos em uppercase e dourado/prata
-  const labelStyle = "block text-xs font-bold text-muted-silver uppercase tracking-wider mb-1";
-  
-  // Botão dourado com texto escuro
-  const buttonStyle = "w-full bg-burnished-gold hover:bg-white hover:text-rich-charcoal text-rich-charcoal font-bold py-3 px-4 rounded-lg shadow-lg hover:shadow-burnished-gold/20 transform transition-all hover:scale-[1.02] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed";
+  // ESTILOS DE FORMULÁRIO EDITORIAIS (Ficha de Biblioteca)
+  const inputStyle = "w-full bg-transparent border-b border-dark-gold/30 px-2 py-3 text-antique-white placeholder:text-muted-silver/30 focus:outline-none focus:border-burnished-gold transition-colors font-sans-modern text-sm";
+  const labelStyle = "block text-[10px] font-bold text-muted-silver uppercase tracking-[0.2em]";
 
   return (
-    // Fundo rich-charcoal
-    <div className="min-h-screen w-full bg-rich-charcoal flex items-center justify-center p-4 animate-fade-in">
+    <div className="min-h-screen w-full bg-transparent flex animate-fade-in relative z-10 selection:bg-burnished-gold selection:text-rich-charcoal">
       
-      {/* Card surface com borda sutil */}
-      <div className="w-full max-w-md bg-surface p-8 rounded-xl border border-muted-silver/10 shadow-2xl relative overflow-hidden">
+      {/* LADO ESQUERDO: A Imersão Literária (Escondido em telas pequenas) */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-surface items-center justify-center border-r border-dark-gold/10 overflow-hidden">
+        {/* Fundo de imagem escura (uma biblioteca antiga ou textura de nanquim) */}
+        <div 
+            className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-luminosity filter grayscale"
+            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=2000')" }}
+        ></div>
+        {/* Gradiente para fundir com a textura de ruído global */}
+        <div className="absolute inset-0 bg-gradient-to-t from-rich-charcoal via-rich-charcoal/80 to-transparent"></div>
         
-        {/* Efeito de brilho sutil no fundo do card */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-burnished-gold/50 to-transparent opacity-50"></div>
+        <div className="relative z-10 p-16 max-w-2xl">
+            <Feather size={48} className="text-burnished-gold/50 mb-8" />
+            <blockquote className="font-serif-display text-4xl text-antique-white leading-tight mb-6">
+                "O mistério da existência humana não consiste apenas em permanecer vivo, mas em encontrar algo pelo qual viver."
+            </blockquote>
+            <p className="text-burnished-gold font-sans-modern uppercase tracking-[0.3em] text-sm font-bold">
+                — Fiódor Dostoiévski
+            </p>
+        </div>
+      </div>
 
-        <h1 className="text-3xl text-burnished-gold font-serif-display mb-2 text-center">Bibliotheca</h1>
-        <p className="text-muted-silver text-center mb-8 font-light text-sm">Acesse sua coleção pessoal</p>
-        
-        {error && (
-          <div className="bg-red-900/20 border border-red-500/30 text-red-300 p-3 mb-6 rounded-lg text-center text-sm flex items-center justify-center gap-2">
-            ⚠️ {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className={labelStyle}>E-mail</label>
-            <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputStyle}
-              placeholder="seu@email.com"
-              required
-            />
+      {/* LADO DIREITO: O Formulário de Acesso */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12">
+        <div className="w-full max-w-md">
+          
+          <div className="text-center mb-16">
+             {/* A NOVA LOGO COMO PORTA DE ENTRADA */}
+             <div className="flex justify-center mb-8">
+                 <Logo className="text-4xl sm:text-5xl" showSubtitle={true} />
+             </div>
+             <p className="text-muted-silver font-sans-modern font-light text-sm">Apresente suas credenciais para acessar os arquivos.</p>
           </div>
           
-          <div>
-            <label className={labelStyle}>Senha</label>
-            <input 
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              className={inputStyle}
-              placeholder="••••••••"
-              required
-            />
+          {error && (
+            <div className="bg-red-900/10 border-l-2 border-red-900/50 text-red-400/80 p-4 mb-8 text-sm font-sans-modern flex items-start gap-3">
+              <span className="text-lg leading-none">♦</span> {error}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-8">
+            <div className="group">
+              <label className={labelStyle}>Identificação (E-mail)</label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputStyle}
+                placeholder="nome@dominio.com"
+                required
+              />
+            </div>
+            
+            <div className="group">
+              <label className={labelStyle}>Chave de Acesso (Senha)</label>
+              <input 
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                className={inputStyle}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <div className="pt-6">
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-burnished-gold text-rich-charcoal font-sans-modern uppercase tracking-widest font-bold py-4 px-4 rounded-sm hover:bg-antique-white transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(194,168,120,0.15)]"
+              >
+                {loading ? (
+                   <span className="flex items-center gap-3">
+                      <div className="w-4 h-4 border-2 border-rich-charcoal/30 border-t-rich-charcoal rounded-full animate-spin"></div>
+                      Destrancando Arquivos...
+                   </span>
+                ) : 'Acessar Bibliotheca'}
+              </button>
+            </div>
+          </form>
+          
+          <div className="mt-16 text-center border-t border-dark-gold/10 pt-8">
+              <p className="text-muted-silver text-xs font-sans-modern uppercase tracking-widest">
+                  Novo no Panteão? <Link to="/cadastro" className="text-burnished-gold hover:text-antique-white transition-colors ml-2 font-bold">Solicitar Registro</Link>
+              </p>
           </div>
 
-          <div className="pt-2">
-            <button type="submit" className={buttonStyle} disabled={loading}>
-              {loading ? (
-                 <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-rich-charcoal border-t-transparent rounded-full animate-spin"></div>
-                    Acessando...
-                 </span>
-              ) : 'Entrar na Biblioteca'}
-            </button>
-          </div>
-        </form>
-        
-        <p className="mt-8 text-center text-muted-silver text-sm">
-            Não tem conta? <Link to="/cadastro" className="text-burnished-gold hover:text-white transition-colors underline decoration-burnished-gold/30 underline-offset-4">Cadastre-se</Link>
-        </p>
+        </div>
       </div>
     </div>
   );
