@@ -1,14 +1,11 @@
 package com.leitura.Biblioteca_api.config;
 
-import com.leitura.Biblioteca_api.model.Role;
-import com.leitura.Biblioteca_api.model.Usuario;
-import com.leitura.Biblioteca_api.repository.UsuarioRepository;
-import com.leitura.Biblioteca_api.service.JwtService;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseToken;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -22,15 +19,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
 
 @Component
-@RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
-
-    private final JwtService jwtService;
-    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(
@@ -41,32 +32,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         try {
             final String authHeader = request.getHeader("Authorization");
-            final String jwt;
-            final String userEmail;
 
+            // 1. Verifica se a requisição possui o Token do React
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            jwt = authHeader.substring(7);
-            userEmail = jwtService.extractUsername(jwt);
+            String jwt = authHeader.substring(7);
+
+            // 2. A MÁGICA ACONTECE AQUI: O Firebase valida o token sem precisar de banco de dados
+            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(jwt);
+            String userEmail = decodedToken.getEmail();
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                
-                // 1. Busca ou Cria a Entidade no Banco
-                Usuario entity = buscarOuCriarUsuario(userEmail);
 
-                // 2. CONVERTE PARA UM OBJETO SEGURO (DTO)
-                // Isso corta qualquer laço com o Hibernate/Banco de Dados
-                UserDetails userDetails = new SimpleUser(
-                    entity.getId(), 
-                    entity.getEmail(), 
-                    entity.getSenha(), 
-                    entity.getRole().name()
-                );
+                // 3. Cria um "Usuário Virtual" apenas para o Spring Security liberar a requisição atual
+                UserDetails userDetails = new SimpleUser(userEmail, "ROLE_USER");
 
-                // 3. Autentica com o objeto seguro
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
@@ -76,43 +59,21 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         } catch (Exception e) {
-            System.out.println(">>> Erro de Segurança (Ignorado): " + e.getMessage());
+            System.out.println(">>> Acesso Negado (Token Inválido ou Expirado): " + e.getMessage());
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private Usuario buscarOuCriarUsuario(String email) {
-        Optional<Usuario> userOpt = usuarioRepository.findByEmail(email);
-        if (userOpt.isPresent()) {
-            return userOpt.get();
-        } else {
-            System.out.println(">>> AUTO-CADASTRO: " + email);
-            Usuario newUser = new Usuario();
-            newUser.setEmail(email);
-            String nome = email.contains("@") ? email.split("@")[0] : "Leitor";
-            newUser.setNome(nome);
-            newUser.setSenha("FIREBASE_AUTH");
-            newUser.setRole(Role.USER);
-            return usuarioRepository.save(newUser);
-        }
-    }
-
-    // --- CLASSE INTERNA SEGURA (Sem JPA, Sem Lazy Load) ---
+    // --- CLASSE INTERNA SEGURA (Sem JPA, Sem Banco de Dados) ---
     public static class SimpleUser implements UserDetails {
-        private final Long id; // Guardamos o ID para usar nos Services
         private final String email;
-        private final String password;
         private final String role;
 
-        public SimpleUser(Long id, String email, String password, String role) {
-            this.id = id;
+        public SimpleUser(String email, String role) {
             this.email = email;
-            this.password = password;
             this.role = role;
         }
-
-        public Long getId() { return id; } // Getter extra para o ID
 
         @Override
         public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -120,7 +81,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         @Override
-        public String getPassword() { return password; }
+        public String getPassword() { return ""; } // Senha vazia, pois o Firebase já autenticou
         @Override
         public String getUsername() { return email; }
         @Override

@@ -1,11 +1,8 @@
 package com.leitura.Biblioteca_api.config;
 
-import com.leitura.Biblioteca_api.repository.UsuarioRepository;
-import com.leitura.Biblioteca_api.service.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -24,27 +21,28 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtService jwtService;
-    private final UsuarioRepository usuarioRepository;
-    private final AuthenticationProvider authenticationProvider;
+    // Injetamos o nosso novo filtro do Firebase (ele já tem a anotação @Component)
+    private final JwtAuthFilter jwtAuthFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         
-        // Criamos APENAS o nosso filtro corrigido
-        JwtAuthFilter jwtAuthFilter = new JwtAuthFilter(jwtService, usuarioRepository);
-
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                // --- AQUI ESTÁ A CORREÇÃO: Adicionamos "/api/recomendar" na lista ---
-                .requestMatchers("/api/auth/**", "/api/recomendar", "/h2-console/**", "/error", "/favicon.ico").permitAll()
+                // Liberamos apenas rotas estritamente públicas.
+                // Removemos o /h2-console e o /api/auth porque não gerenciamos mais banco nem login aqui.
+                .requestMatchers("/error", "/favicon.ico").permitAll()
                 
+                // Todo o resto exigirá que o Front-end mande um Token válido do Firebase!
                 .anyRequest().authenticated()
             )
+            // Desativa a criação de sessão (o React vai mandar o token a cada pedido)
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authenticationProvider(authenticationProvider)
+            
+            // Não precisamos mais do authenticationProvider. 
+            // Colocamos o nosso filtro de Firebase ANTES do filtro padrão do Spring.
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

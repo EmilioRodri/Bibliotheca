@@ -1,93 +1,149 @@
 package com.leitura.Biblioteca_api.service;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class GeminiService {
 
+    private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
+
     @Value("${gemini.api.key}")
-    private String apiKeyRaw;
+    private String apiKey;
 
-    // VOLTAMOS PARA O 2.5 (O ÚNICO QUE SUA CHAVE ACEITA)
-    private final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    private final ObjectMapper objectMapper;
+    private final HttpClient client;
 
+    public GeminiService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        this.client = HttpClient.newHttpClient(); // Reutilizando a mesma instância de client para melhor performance
+    }
+
+    // ---------------------------------------------------------
+    // Módulo 1: O Oráculo (Recomendação de Livros)
+    // ---------------------------------------------------------
     public String getRecomendacao(Object perfil, String mood) throws IOException {
         
-        if (apiKeyRaw == null) throw new IOException("API Key é nula!");
-        String apiKey = apiKeyRaw.trim(); 
+        String finalApiKey = (apiKey != null && !apiKey.contains("${")) ? apiKey : "AIzaSyCOJWBdsn4Ls1mabOfj_G2dDBVDS0273u8";
+        finalApiKey = finalApiKey.trim();
+        
+        String finalModel = "gemini-3.1-flash-lite";
+        String urlString = "https://generativelanguage.googleapis.com/v1beta/models/" + finalModel + ":generateContent?key=" + finalApiKey;
 
-        System.out.println(">>> CONECTANDO AO GEMINI 2.5 (Tentativa com Retry)...");
+        log.info("### Invocando o Oráculo via: {} ###", finalModel);
 
-        String promptTexto = "Atue como bibliotecário. Mood: " + mood + ". " +
-                             "Histórico: " + perfil.toString() + ". " +
-                             "Recomende 4 livros. " +
-                             "Responda EXATAMENTE este JSON puro: " +
-                             "{ \"motivoGeral\": \"texto\", \"recomendacoes\": [ { \"titulo\": \"Titulo\", \"autor\": \"Autor\", \"urlCapa\": \"\", \"motivoRecomendacao\": \"texto\" } ] }";
+        String historico = (perfil != null) ? perfil.toString() : "Nenhuma preferência registrada ainda.";
 
-        String jsonSafePrompt = promptTexto.replace("\"", "'").replace("\n", " ");
-        String requestBody = "{ \"contents\": [{ \"parts\": [{ \"text\": \"" + jsonSafePrompt + "\" }] }] }";
+        String promptTexto = String.format(
+            "Você é um curador literário experiente do canal 'Cânone das Sombras'.\n" +
+            "OBJETIVO: Recomendar 4 obras brilhantes para o leitor.\n\n" +
+            "REGRAS:\n" +
+            "1. Retorne APENAS o JSON.\n" +
+            "2. No campo 'urlCapa', deixe uma string vazia \"\" (o sistema buscará a imagem depois).\n" +
+            "3. Escolha livros que combinem com o Mood: %s e Histórico: %s.\n\n" +
+            "FORMATO JSON:\n" +
+            "{ \"motivoGeral\": \"...\", \"recomendacoes\": [ { \"titulo\": \"...\", \"autor\": \"...\", \"urlCapa\": \"\", \"motivoRecomendacao\": \"...\" } ] }",
+            mood, historico
+        );
 
-        HttpClient client = HttpClient.newHttpClient();
+        return invocarGemini(urlString, promptTexto, true);
+    }
+
+    // ---------------------------------------------------------
+    // Módulo 2: O Roteirista (YouTube Helper / Textos Livres)
+    // ---------------------------------------------------------
+    public String consultarIA(String promptTexto) throws IOException {
+        
+        String finalApiKey = (apiKey != null && !apiKey.contains("${")) ? apiKey : "AIzaSyCOJWBdsn4Ls1mabOfj_G2dDBVDS0273u8";
+        finalApiKey = finalApiKey.trim();
+        
+        String finalModel = "gemini-3.1-flash-lite";
+        String urlString = "https://generativelanguage.googleapis.com/v1beta/models/" + finalModel + ":generateContent?key=" + finalApiKey;
+
+        log.info("### Invocando a IA para Geração de Roteiro via: {} ###", finalModel);
+
+        // O boolean false indica que não vamos forçar o retorno em JSON (responseMimeType), 
+        // pois o roteiro é um texto livre (Markdown).
+        return invocarGemini(urlString, promptTexto, false);
+    }
+
+    // ---------------------------------------------------------
+    // Motor Central de Comunicação HTTP
+    // ---------------------------------------------------------
+    private String invocarGemini(String urlString, String promptTexto, boolean forcarJson) throws IOException {
+        Map<String, Object> textPart = new HashMap<>();
+        textPart.put("text", promptTexto);
+        
+        Map<String, Object> contentPart = new HashMap<>();
+        contentPart.put("parts", List.of(textPart));
+        
+        Map<String, Object> requestBodyMap = new HashMap<>();
+        requestBodyMap.put("contents", List.of(contentPart));
+
+        if (forcarJson) {
+            Map<String, Object> generationConfig = new HashMap<>();
+            generationConfig.put("responseMimeType", "application/json");
+            requestBodyMap.put("generationConfig", generationConfig);
+        }
+
+        String requestBody = objectMapper.writeValueAsString(requestBodyMap);
+
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(BASE_URL + "?key=" + apiKey))
+                .uri(URI.create(urlString))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
-        // TENTATIVA 1
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            // SE DER 503 (Serviço Indisponível), TENTA DE NOVO UMA VEZ
-            if (response.statusCode() == 503) {
-                System.out.println(">>> 503 DETECTADO. AGUARDANDO 2 SEGUNDOS PARA TENTAR DE NOVO...");
-                Thread.sleep(2000); 
-                response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            }
-
             if (response.statusCode() != 200) {
-                System.out.println("!!! ERRO GOOGLE !!! STATUS: " + response.statusCode());
-                System.out.println("BODY: " + response.body());
-                throw new IOException("Erro API Google: " + response.statusCode());
+                log.error("Erro Google! Status: {} | Body: {}", response.statusCode(), response.body());
+                throw new IOException("O Google recusou o chamado. Status: " + response.statusCode());
             }
 
-            String responseBody = response.body();
-            int startIndex = responseBody.indexOf("\"text\": \"");
+            JsonNode rootNode = objectMapper.readTree(response.body());
             
-            if (startIndex != -1) {
-                String texto = responseBody.substring(startIndex + 9);
-                // Lógica robusta para achar o fim do JSON
-                int endIndex = texto.lastIndexOf("}"); 
-                // Se o lastIndexOf pegar o fecha chave do JSON externo, ajustamos
-                if (endIndex > texto.lastIndexOf("\"")) { 
-                     // Procura a aspa de fechamento do campo text
-                     endIndex = texto.indexOf("\"\n");
-                     if (endIndex == -1) endIndex = texto.lastIndexOf("\"", texto.length() - 5);
-                }
-
-                if (endIndex != -1) texto = texto.substring(0, endIndex);
-                
-                texto = texto.replace("\\n", " ").replace("\\\"", "\"").replace("\\r", "");
-                
-                if (texto.startsWith("```json")) texto = texto.substring(7);
-                if (texto.startsWith("```")) texto = texto.substring(3);
-                if (texto.endsWith("```")) texto = texto.substring(0, texto.length() - 3);
-                
-                return texto.trim();
-            } else {
-                 return responseBody;
+            JsonNode candidates = rootNode.path("candidates");
+            if (candidates.isMissingNode() || candidates.isEmpty()) {
+                throw new IOException("Resposta vazia do Google.");
             }
+
+            String textoGerado = candidates.get(0)
+                                          .path("content")
+                                          .path("parts")
+                                          .get(0)
+                                          .path("text")
+                                          .asText();
+            
+            return limparMarkdownJson(textoGerado);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Conexão interrompida.");
+            throw new IOException("Conexão interrompida.", e);
         }
+    }
+
+    private String limparMarkdownJson(String texto) {
+        String limpo = texto.trim();
+        if (limpo.startsWith("```")) {
+            // Remove as marcações de código Markdown (```json, ```html, ```, etc)
+            limpo = limpo.replaceAll("```[a-zA-Z]*\\n|```", "").trim();
+        }
+        return limpo;
     }
 }

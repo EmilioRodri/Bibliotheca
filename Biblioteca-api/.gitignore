@@ -48,3 +48,6 @@ Thumbs.db
 
 # Se você usar variáveis de ambiente (arquivo .env) no Java também:
 .env
+
+# Ignora a chave privada do Firebase
+firebase-service-account.json
